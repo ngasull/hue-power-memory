@@ -1,0 +1,31 @@
+{
+  "name": "hue-power-memory",
+  "version": "1.0.0",
+  "description": "Memorize Phillips Hue lights state when they're switched off electricity",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ngasull/hue-power-memory.git"
+  },
+  "author": "nicolas@gasull.net",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ngasull/hue-power-memory/issues"
+  },
+  "homepage": "https://github.com/ngasull/hue-power-memory#readme",
+  "dependencies": {
+    "fs-extra": "^6.0.1",
+    "huejay": "^1.8.4",
+    "node-fetch": "^2.1.2"
+  },
+  "devDependencies": {
+    "eslint": "^4.19.1",
+    "eslint-config-airbnb-base": "^13.0.0",
+    "eslint-plugin-import": "^2.13.0",
+    "flow-bin": "^0.75.0"
+  }
+}
