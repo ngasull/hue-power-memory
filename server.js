@@ -2,8 +2,9 @@
 
 const fs = require('fs-extra')
 const huejay = require('huejay')
+const fetch = require('node-fetch')
 
-const CHECK_INTERVAL = 1500
+const CHECK_INTERVAL = 1000
 const DB_FILE = 'db.json'
 const DB_DEFAULT = {
   bridgeIp: null,
@@ -15,12 +16,11 @@ run()
 async function run() {
   console.log('Starting Hue power memory server')
   const db = await discoverBridge(await initDb())
+  const urlBase = `http://${db.bridgeIp}/api/${db.username}/`
   const state = {
     db,
-    client: new huejay.Client({
-      host: db.bridgeIp,
-      username: db.username,
-    }),
+    getJson: uri => fetch(`${urlBase}${uri}`).then(res => res.json()),
+    putJson: (uri, body) => fetch(`${urlBase}${uri}`, { method: 'PUT', body: JSON.stringify(body) }).then(res => res.json()),
     nextActions: [],
     lights: {},
   }
@@ -42,10 +42,8 @@ async function sleep(ms) {
 }
 
 async function saveLightsState(state) {
-  const lights = await state.client.lights.getAll()
-  return Object.assign({}, state, {
-    lights: lights.reduce((s, l) => Object.assign(s, { [l.id]: getLightState(l) }), {}),
-  })
+  const lights = await state.getJson('lights')
+  return Object.assign({}, state, { lights })
 }
 
 async function restoreState(state, prevState) {
@@ -53,20 +51,31 @@ async function restoreState(state, prevState) {
     const l = state.lights[id]
     const prevL = prevState.lights[id]
     try {
-      if (prevL && l.huejay.reachable && isLightReset(l)) {
-        l.huejay.brightness = prevL.brightness
-        l.huejay.hue = prevL.hue
-        l.huejay.saturation = prevL.saturation
-        l.huejay.xy = prevL.xy
-        l.huejay.colorTemp = prevL.colorTemp
-        console.log(`Restored state on ${l.huejay.name}`)
-        await state.client.lights.save(l.huejay)
-        return Object.assign({}, getLightState(l.huejay), { justRestored: true })
+      if (prevL && (isLightReset(l) || !l.state.reachable)) {
+        // console.log(`Restored state on ${l.name}`)
+        const newParams = {
+          bri: prevL.state.bri,
+          hue: prevL.state.hue,
+          sat: prevL.state.sat,
+          xy: prevL.state.xy,
+          ct: prevL.state.ct,
+          // effect: 'none',
+          // alert: 'none',
+          // colormode: 'xy',
+        }
+        await state.putJson(`lights/${id}/state`, newParams)
+        return {
+          ...l,
+          state: {
+            ...l.state,
+            ...newParams,
+          },
+        }
       }
       return l
     } catch (e) {
       if (prevL) {
-        console.log(prevL.huejay.name, ' not available')
+        console.log(prevL.name, ' not available')
         return prevL
       }
       return null
@@ -76,35 +85,22 @@ async function restoreState(state, prevState) {
     lights: lightChanges.reduce((acc, l) => (
       l
         ? Object.assign(acc, {
-          [l.huejay.id]: l,
+          [l.id]: l,
         })
         : acc
     ), state.lights),
   })
 }
 
-function getLightState(light) {
-  return {
-    huejay: light,
-    on: light.on,
-    reachable: light.reachable,
-    brightness: light.brightness,
-    hue: light.hue,
-    saturation: light.saturation,
-    xy: light.xy,
-    colorTemp: light.colorTemp,
-  }
-}
-
 function isLightReset(light) {
   return (
-    light.on
-    && light.brightness === 254
-    && light.hue === 8418
-    && light.saturation === 140
-    && light.xy[0] === 0.4573
-    && light.xy[1] === 0.41
-    && light.colorTemp === 366
+    light.state.on
+    && light.state.bri === 254
+    && light.state.hue === 8418
+    && light.state.sat === 140
+    && light.state.xy[0] === 0.4573
+    && light.state.xy[1] === 0.41
+    && light.state.ct === 366
   )
 }
 
